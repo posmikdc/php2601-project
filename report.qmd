@@ -114,6 +114,12 @@ GGally::ggpairs(pred_dta)
 
 ## Part 1: Linear Regression Analysis (Daniel)
 
+### Assumptions of the Linear Model
+
+### OLS vs. GLS Estimation
+
+### Hypothesis Testing
+
 ## Part 2: Principal Component Analysis (Aristofanis) 
 
 ## Part 3: Non-linear Regression Analysis (Jizhou)
