@@ -84,12 +84,34 @@ knitr::kable(table_summary, caption = "Variable Summary for the Educational Data
 
 ```
 
-Now, we can also take a look at how the explanatory variables relate to each other. 
+Now, we want to further explore a specific hypothesis about a subset of predictor variables. Suppose we maintain that the following variables are significant predictors:
+
+- Hours Studied
+- Attendance 
+- Sleep Hours 
+- Previous Scores
+- Tutoring Sessions
+
+We can formalize this question as follows:
+
+- $H_0: \beta_1 = \beta_2 = \beta_3 = \beta_4 = \beta_5 = 0$
+- $H_A: \text{At least one of the coefficients is not equal to zero}$
+
+Before we begin our analysis, let us take a look at the dependencies across these data: 
 
 ```{r, fig.width=10, fig.height=10}
-GGally::ggpairs(educ_dta)
+pred_var <- c("Hours_Studied", 
+              "Attendance", 
+              "Sleep_Hours", 
+              "Previous_Scores", 
+              "Tutoring_Sessions")
 
+pred_dta <- educ_dta %>%
+  dplyr::select(all_of(pred_var), "Exam_Score")
+
+GGally::ggpairs(pred_dta) 
 ```
+
 ## Part 1: Linear Regression Analysis (Daniel)
 
 ## Part 2: Principal Component Analysis (Aristofanis) 
