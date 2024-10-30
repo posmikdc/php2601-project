@@ -1,0 +1,2 @@
+\beamer@sectionintoc {1}{A Major Theme}{3}{0}{1}
+\beamer@sectionintoc {2}{The Other Major Theme}{5}{0}{2}
