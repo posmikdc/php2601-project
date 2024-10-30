@@ -18,10 +18,12 @@ knitr::opts_chunk$set(message = F)
 library(tidyverse)
 library(kableExtra)
 library(knitr)
+library(broom)
 library(ggplot2)
 library(naniar)
 library(gtsummary)
 library(GGally)
+library(MASS)
 
 ```
 
@@ -80,7 +82,8 @@ table_summary <- tibble(
 )
 
 # Display the table
-knitr::kable(table_summary, caption = "Variable Summary for the Educational Data")
+knitr::kable(table_summary, 
+  caption = "Variable Summary for the Educational Data")
 
 ```
 
@@ -94,12 +97,12 @@ Now, we want to further explore a specific hypothesis about a subset of predicto
 
 We can formalize this question as follows:
 
-- $H_0: \beta_1 = \beta_2 = \beta_3 = \beta_4 = \beta_5 = 0$
-- $H_A: \text{At least one of the coefficients is not equal to zero}$
+- $H_0: \begin{bmatrix} 1_{[0, \cdots, p+1]}, & 0_{[p+2, \cdots, P]} \end{bmatrix} \cdot \begin{bmatrix} \beta_0 & \cdots & \beta_{P} \end{bmatrix}^T = \beta_0 + \cdots + \beta_{p+1} = 0$ 
+- $H_A: \{\beta_1 \neq 0\} \cap \cdots \cap \{\beta_5 \neq 0\}$
 
 Before we begin our analysis, let us take a look at the dependencies across these data: 
 
-```{r, fig.width=10, fig.height=10}
+```{r, fig.width=10, fig.height=6}
 pred_var <- c("Hours_Studied", 
               "Attendance", 
               "Sleep_Hours", 
@@ -113,6 +116,156 @@ GGally::ggpairs(pred_dta)
 ```
 
 ## Part 1: Linear Regression Analysis (Daniel)
+
+### The Least Squares Estimators 
+
+Let us begin by discussing the assumptions of linear regression model. In a Gauss-Markov setting, we assume that our linear model is of the form:
+
+$$
+\mathbf{Y} = \mathbf{X}\beta + \epsilon, \quad \epsilon \sim \textit{N}(0, \sigma^2I)
+$$
+
+where $\mathbb{E}[\epsilon] = 0$ and $\text{Var}[\epsilon] = \sigma^2I$ denote the zero-mean and constant variance assumptions. In our case, we begin with $p = 5$, i.e. our design matrix has $p+1$ columns, accounting for the intercept term. Then, we can write the model as matrices:
+
+That being said, what the Gauss-Markov model boasts in theoretical simplicity, it often lacks in practical validity. If we refer to the exploratory analysis above, we can see that the assumptions may not hold. For one, we have one predictor variable, `Tutoring_Sessions`, and our dependent variable, `Exam_Score`, that are right-skewed. This violates the assumption of normality. Moreover, the Gauss-Markov model assumes constant variance with zeros on the off-diagonal elements of the covariance matrix. In practice, this is an assumption that is frequently violated. Interestingly, in our case the correlation between our predictor variables is indeed close to 0. If we had more substantial correlations on the off-diagonal elements, we could have solved our estimation problem with the generalized least squares estimator. 
+
+In our case, we will rememedy the normality assumption by transforming our data. We will use logaritmic transformations on the Exam score variable to achieve a normal distribution (`log_Exam_Score`) and a square root transformation of the Tutoring sessions variable to achieve a distribution that more closely resembles a normal distribution (`log_Tutoring_Sessions`). We chose the square root transformation for the tutoring sessions variable because it contains a lot of 0s, making the logarithmic transformation less suitable. 
+
+```{r}
+# Log-transform skewed variables
+educ_dta <- educ_dta %>%
+  mutate(
+    log_Exam_Score = ifelse(Exam_Score == 0, 0, log(Exam_Score)),
+    sq_Tutoring_Sessions = sqrt(Tutoring_Sessions)
+    )
+
+# Display histograms next to each other
+educ_dta %>%
+  dplyr::select(log_Exam_Score, sq_Tutoring_Sessions) %>%
+  gather() %>%
+  ggplot(aes(value)) +
+  geom_histogram(bins = 30, color = "black", 
+    fill = "lightblue", alpha = 0.7) +
+  facet_wrap(~key, scales = "free") +
+  theme_minimal()
+
+```
+
+$$
+Y = \begin{bmatrix} Y_1 \\ Y_2 \\ \vdots \\ Y_n \end{bmatrix} = 
+\begin{bmatrix}
+1 & X_{12} & X_{13} & \cdots & X_{1(p+1)} \\
+1 & X_{22} & X_{23} & \cdots & X_{2(p+1)} \\
+\vdots & \vdots & \vdots & \ddots & \vdots \\
+1 & X_{n2} & X_{n3} & \cdots & X_{n(p+1)}
+\end{bmatrix} 
+\begin{bmatrix} \beta_0 \\ \beta_1 \\ \beta_2 \\ \vdots \\ \beta_p \end{bmatrix} + 
+\begin{bmatrix} \epsilon_1 \\ \epsilon_2 \\ \vdots \\ \epsilon_n \end{bmatrix}
+$$
+
+Note that we are using the generalized matrix inverse in case the design matrix is not of full rank. The canonical matrix inverse of the form $X^{-1}$ exists iff $X$ is of full rank. Next, we can solve for $\hat{\beta}$ via the normal equations:
+
+$$
+\begin{aligned}
+\hat{\beta} = &(X^TX)^{g}X^TY \\
+= &\left( 
+\begin{bmatrix} 1 & 1 & \cdots & 1 \\ X_{12} & X_{22} & \cdots & X_{n2} \\ \vdots & \vdots & \ddots & \vdots \\ X_{1(p+1)} & X_{2(p+1)} & \cdots & X_{n(p+1)} \end{bmatrix} 
+\begin{bmatrix} 1 & X_{12} & \cdots & X_{1(p+1)} \\ 1 & X_{22} & \cdots & X_{2(p+1)} \\ \vdots & \vdots & \ddots & \vdots \\ 1 & X_{n2} & \cdots & X_{n(p+1)} \end{bmatrix} 
+\right)^{g} 
+\cdot \\
+&\begin{bmatrix} 1 & 1 & \cdots & 1 \\ X_{12} & X_{22} & \cdots & X_{n2} \\ \vdots & \vdots & \ddots & \vdots \\ X_{1(p+1)} & X_{2(p+1)} & \cdots & X_{n(p+1)} \end{bmatrix} 
+\begin{bmatrix} Y_1 \\ Y_2 \\ \vdots \\ Y_n \end{bmatrix}
+\end{aligned}
+$$
+
+Using the R `lm()` function, we can estimate the coefficients of the linear model:
+
+```{r}
+# Fit the linear model
+lm_model <- 
+  lm(log_Exam_Score ~ Hours_Studied + Attendance + 
+                      Sleep_Hours + Previous_Scores + sq_Tutoring_Sessions, 
+                      data = educ_dta)
+
+# Summary 
+lm.tbl <- summary(lm_model)
+
+# Print with modelsummary
+modelsummary::modelsummary(lm_model, 
+  stars = TRUE, 
+  caption = "Linear Regression Results")
+
+```
+
+We can see that all variables except for `Sleep_Hours` are significant predictors of exam scores, even at a 1% significance level. So what does this tell us about our hypothesis? We will further examine this question in the next subsection.  
+
+### Hypothesis Testing
+
+Our estimation question is a hypothesis testing problem. In the following, we will rigorously treat is such, testing whether our subset of predictors (see above) is jointly significant in the prediction of exam scores. Before we proceed, let us introduce additional notation in our hypothesis testing problem:  
+$$
+\mathbf{K}^T\beta = 
+\begin{bmatrix} 1_{[0, \cdots, p+1]}, & 0_{[p+2, \cdots, P]} \end{bmatrix} \cdot 
+\begin{bmatrix} \beta_0 & \cdots & \beta_{P} \end{bmatrix}^T = 
+\beta_0 + \cdots + \beta_{p+1} = 
+\mathbf{M}_{1,(p+1)}
+$$
+
+where $\{\beta_0, \hdots, \beta_{p+1}\}$ are the coefficients of the predictors we are interested in and $\{\beta_{p+2}, \hdots, \beta_{P}\}$ are the coefficients of the remaining predictors. Naturally, $p \leq P$. 
+
+A necessary condition for the hypothesis to be testable is that $\mathbf{K}^T\beta$ is estimable. We say $\exists ~ A ~ \text{s.t. } X^TA = K^T$, i.e. the rows of K are linearly dependent on the rows of X. Indeed, we can verify this without the calculation because we can see that $\mathbf{L}^T$ can be expressed as a linear combination of the design matrix, i.e. the columns space of X, $\mathbb{C}(X)$, contains the column space of $K$, $\mathbb{C}(\mathbf{K})$. A counterexample would be if one of our predictors consisted of 0's only, rendering us unable to estimate $\mathbf{K}^T$ with $\mathbf{X}$.
+
+We are now ready to state an important intermediate distributional result. Since $\mathbf{K}^T \beta$ is estimable, its best linear unbiased estimator (BLUE) is given by:
+
+$$
+\begin{aligned}
+\mathbf{K_i}^T \hat{\beta} &\sim \textit{N}(\mathbf{K_i}^T (X^T X)^g X^T X \beta, \sigma^2 \mathbf{K_i}^T(X^TX)^{g}\mathbf{K_i}) \quad \text{and} \\ 
+\mathbf{K}^T \hat{\beta} &\sim \textit{N}(\mathbf{K}^T (X^T X)^g X^T X \beta, \sigma^2 \mathbf{K}^T(X^TX)^{g}\mathbf{K}) 
+\end{aligned}
+$$
+
+Indeed, we can can test our hypothesis by constructing a quadratic form. While this is certainly not the only way to test our hypothesis, it is a tractable method to incorporate the precision of each $\hat{\beta}_i$ into our hypothesis testing framework. We will see momentarily that this quadratic form results in favorable distributional properties thanks to the previous normal distributional result. Now, defining $H := K (X^T X)^g K^T$, 
+
+$$
+\begin{aligned}
+\mathbf{K}^T \hat{\beta} &\sim \textit{N}(\mathbf{K}^T (X^T X)^g X^T X \beta, \sigma^2 \mathbf{K}^T(X^TX)^{g}\mathbf{K}) \\
+\iff 
+\mathbf{K}^T \hat{\beta} &\sim \textit{N}(\mathbf{K} \beta, \sigma^2 H) \\
+\end{aligned}
+$$
+
+we can construct the quadratic form
+
+$$
+\begin{aligned}
+(K \beta)^T (\sigma^2 H)^{-1} (K \hat{\beta}) &\sim \chi^2_{\text{df} = \text{rank}(H)}(\lambda) \\
+\end{aligned}
+$$
+
+where the non-centrality parameter $\lambda = \frac{1}{2} (K \beta)^T (\sigma^2 H)^{-1}(K \beta)$ by the well-known distributional result of a normal quadratic form. We are now ready to construct the F-test statistic as follows:
+
+$$
+\begin{aligned}
+F := \frac{\left((K \beta)^T (\sigma^2 H)^{-1}(K \beta)\right) / \text{rank}(H)}{\text{RSS}/(n-p)}
+\sim \frac{\chi^2 (\lambda)}{\chi^2} \sim F_{\text{rank}(H), n-p}(\lambda)
+\end{aligned}
+$$
+
+We have successfully constructed a statistical test that allows us to test our hypothesis with a simple F-test. This is very attractive seeing how this test incorportates the precision of our estimates into the hypothesis testing framework, yet is computationally simple. In `R`, we can use the `anova()` function to perform this test. 
+
+```{r}
+# Null model
+null_model <- lm(log_Exam_Score ~ 1, data = educ_dta)
+
+# Perform the F-test
+anova.tbl <- anova(null_model, lm_model)
+
+# Print 
+kableExtra::kable(anova.tbl, 
+  caption = "F-Test Results for the Hypothesis Test")
+
+```
+
+The result shows that under the null hypothesis, the probability of getting a more extreme result than our calculate F-test statistics `Pr(>F)` is $2.2e-16$. This evidence would lead us to reject the null hypothesis and conclude that our subset of predictors is indeed a significant predictor of exam scores. The observed test statistics agree exactly with the ones reported in the regression table. Using the F-statistic is important in settings like ours when we are interested in joint model significance rather than individual predictor significance. It is noteworthy that this analysis could certainly be extended to different model specifications, however, this is beyond the scope of this project.
 
 ## Part 2: Principal Component Analysis (Aristofanis) 
 
