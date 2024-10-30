@@ -23,6 +23,7 @@ library(ggplot2)
 library(naniar)
 library(gtsummary)
 library(GGally)
+library(MASS)
 
 ```
 
@@ -96,7 +97,7 @@ Now, we want to further explore a specific hypothesis about a subset of predicto
 
 We can formalize this question as follows:
 
-- $H_0: \begin{bmatrix} 1_{i=0}, & \hdots & 1_{i=p+1}, & 0_{i=p+2}, & \hdots & 0_{i=P}, \end{bmatrix} \cdot \mathbf{\beta} = \beta_0 + \cdots + \beta_{(p+1)} = 0$ 
+- $H_0: \begin{bmatrix} 1_{[0, \cdots, p+1]}, & 0_{[p+2, \cdots, P]} \end{bmatrix} \cdot \begin{bmatrix} \beta_0 & \cdots & \beta_{P} \end{bmatrix}^T = \beta_0 + \cdots + \beta_{p+1} = 0$ 
 - $H_A: \{\beta_1 \neq 0\} \cap \cdots \cap \{\beta_5 \neq 0\}$
 
 Before we begin our analysis, let us take a look at the dependencies across these data: 
@@ -147,6 +148,7 @@ educ_dta %>%
     fill = "lightblue", alpha = 0.7) +
   facet_wrap(~key, scales = "free") +
   theme_minimal()
+
 ```
 
 $$
@@ -186,36 +188,84 @@ lm_model <-
                       data = educ_dta)
 
 # Summary 
-summary(lm_model)
+lm.tbl <- summary(lm_model)
+
+# Print with modelsummary
+modelsummary::modelsummary(lm_model, 
+  stars = TRUE, 
+  caption = "Linear Regression Results")
+
 ```
 
 We can see that all variables except for `Sleep_Hours` are significant predictors of exam scores, even at a 1% significance level. So what does this tell us about our hypothesis? We will further examine this question in the next subsection.  
 
 ### Hypothesis Testing
 
-Our estimation question is essentially a hypothesis testing problem. Namely, we want to test whether a subset of our predictors (see above) is jointly significant in the prediction of exam scores. We can formalize this as a hypothesis test by introducing the scalar vector $K$ such that: 
-
+Our estimation question is a hypothesis testing problem. In the following, we will rigorously treat is such, testing whether our subset of predictors (see above) is jointly significant in the prediction of exam scores. Before we proceed, let us introduce additional notation in our hypothesis testing problem:  
 $$
-K^T\beta = 
-\begin{bmatrix} 1_{i=0} & \hdots & 1_{i=p+1} & 0_{i=p+2} & \hdots & 0_{i=P} \end{bmatrix} 
-\begin{bmatrix} \beta_0 \\ \vdots \\ \beta_{p+1} \\ \beta_{p+2} \\ \vdots \\ \beta_{P} \end{bmatrix} =
-\begin{bmatrix} \beta_0 \\ \vdots \\ \beta_{p+1} \end{bmatrix} = 
-M_{1,(p+1)}
-$$
-
-where $\{\beta_0, \hdots, \beta_{p+1}\}$ are the coefficients of the predictors we are interested in and $\{\beta_{p+2}, \hdots, \beta_{P^*}\}$ are the coefficients of the remaining predictors, with $p \leq P$. 
-
-We call $\beta^T M$ estimable if $K_i \in \mathbb{C}(X^T)$ or in other words $\exists ~ A ~ \text{s.t. } X^TA = K^T$, i.e. the rows of K are linearly dependent on the rows of X. 
-
-Since $K_I^T \beta$ is estimable, its BLUE is given by: 
-
-$$
-{K^T}\hat{\beta} = K_i^T(X^TX)^{g}X^TY
+\mathbf{K}^T\beta = 
+\begin{bmatrix} 1_{[0, \cdots, p+1]}, & 0_{[p+2, \cdots, P]} \end{bmatrix} \cdot 
+\begin{bmatrix} \beta_0 & \cdots & \beta_{P} \end{bmatrix}^T = 
+\beta_0 + \cdots + \beta_{p+1} = 
+\mathbf{M}_{1,(p+1)}
 $$
 
-In our case, we can test our hypothesis with the help of a F-test. **How do we arrive at F test statistic?????**
+where $\{\beta_0, \hdots, \beta_{p+1}\}$ are the coefficients of the predictors we are interested in and $\{\beta_{p+2}, \hdots, \beta_{P}\}$ are the coefficients of the remaining predictors. Naturally, $p \leq P$. 
 
+A necessary condition for the hypothesis to be testable is that $\mathbf{K}^T\beta$ is estimable. We say $\exists ~ A ~ \text{s.t. } X^TA = K^T$, i.e. the rows of K are linearly dependent on the rows of X. Indeed, we can verify this without the calculation because we can see that $\mathbf{L}^T$ can be expressed as a linear combination of the design matrix, i.e. the columns space of X, $\mathbb{C}(X)$, contains the column space of $K$, $\mathbb{C}(\mathbf{K})$. A counterexample would be if one of our predictors consisted of 0's only, rendering us unable to estimate $\mathbf{K}^T$ with $\mathbf{X}$.
 
+We are now ready to state an important intermediate distributional result. Since $\mathbf{K}^T \beta$ is estimable, its best linear unbiased estimator (BLUE) is given by:
+
+$$
+\begin{aligned}
+\mathbf{K_i}^T \hat{\beta} &\sim \textit{N}(\mathbf{K_i}^T (X^T X)^g X^T X \beta, \sigma^2 \mathbf{K_i}^T(X^TX)^{g}\mathbf{K_i}) \quad \text{and} \\ 
+\mathbf{K}^T \hat{\beta} &\sim \textit{N}(\mathbf{K}^T (X^T X)^g X^T X \beta, \sigma^2 \mathbf{K}^T(X^TX)^{g}\mathbf{K}) 
+\end{aligned}
+$$
+
+Indeed, we can can test our hypothesis by constructing a quadratic form. While this is certainly not the only way to test our hypothesis, it is a tractable method to incorporate the precision of each $\hat{\beta}_i$ into our hypothesis testing framework. We will see momentarily that this quadratic form results in favorable distributional properties thanks to the previous normal distributional result. Now, defining $H := K (X^T X)^g K^T$, 
+
+$$
+\begin{aligned}
+\mathbf{K}^T \hat{\beta} &\sim \textit{N}(\mathbf{K}^T (X^T X)^g X^T X \beta, \sigma^2 \mathbf{K}^T(X^TX)^{g}\mathbf{K}) \\
+\iff 
+\mathbf{K}^T \hat{\beta} &\sim \textit{N}(\mathbf{K} \beta, \sigma^2 H) \\
+\end{aligned}
+$$
+
+we can construct the quadratic form
+
+$$
+\begin{aligned}
+(K \beta)^T (\sigma^2 H)^{-1} (K \hat{\beta}) &\sim \chi^2_{\text{df} = \text{rank}(H)}(\lambda) \\
+\end{aligned}
+$$
+
+where the non-centrality parameter $\lambda = \frac{1}{2} (K \beta)^T (\sigma^2 H)^{-1}(K \beta)$ by the well-known distributional result of a normal quadratic form. We are now ready to construct the F-test statistic as follows:
+
+$$
+\begin{aligned}
+F := \frac{\left((K \beta)^T (\sigma^2 H)^{-1}(K \beta)\right) / \text{rank}(H)}{\text{RSS}/(n-p)}
+\sim \frac{\chi^2 (\lambda)}{\chi^2} \sim F_{\text{rank}(H), n-p}(\lambda)
+\end{aligned}
+$$
+
+We have successfully constructed a statistical test that allows us to test our hypothesis with a simple F-test. This is very attractive seeing how this test incorportates the precision of our estimates into the hypothesis testing framework, yet is computationally simple. In `R`, we can use the `anova()` function to perform this test. 
+
+```{r}
+# Null model
+null_model <- lm(log_Exam_Score ~ 1, data = educ_dta)
+
+# Perform the F-test
+anova.tbl <- anova(null_model, lm_model)
+
+# Print 
+kableExtra::kable(anova.tbl, 
+  caption = "F-Test Results for the Hypothesis Test")
+
+```
+
+The result shows that under the null hypothesis, the probability of getting a more extreme result than our calculate F-test statistics `Pr(>F)` is $2.2e-16$. This evidence would lead us to reject the null hypothesis and conclude that our subset of predictors is indeed a significant predictor of exam scores. The observed test statistics agree exactly with the ones reported in the regression table. Using the F-statistic is important in settings like ours when we are interested in joint model significance rather than individual predictor significance. It is noteworthy that this analysis could certainly be extended to different model specifications, however, this is beyond the scope of this project.
 
 ## Part 2: Principal Component Analysis (Aristofanis) 
 
