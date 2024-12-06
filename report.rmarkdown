@@ -8,7 +8,9 @@ format:
     toc: true
 ---
 
+
 \newpage
+
 
 ```{r setup, include=FALSE}
 # Set up knit environment
@@ -51,9 +53,11 @@ educ_dta <- read_csv("student_performance.csv") %>%
 
 ```
 
+
 ## Introduction
 
 For this project, we will be analyzing educational data. We are interested in understanding the predictors of student performance as measured by exam scores. We will be using a publicly available dataset from Kaggle that contains information about students and their exam scores.
+
 
 ```{r}
 # Summary table
@@ -93,6 +97,7 @@ write.csv(table_summary, "table_summary.csv", row.names = F)
 
 ```
 
+
 Now, we want to further explore a specific hypothesis about a subset of predictor variables. Suppose we maintain that the following variables are significant predictors:
 
 - Hours Studied
@@ -107,6 +112,7 @@ We can formalize this question as follows:
 - $H_A: \{\beta_1 \neq 0\} \cap \cdots \cap \{\beta_5 \neq 0\}$
 
 Before we begin our analysis, let us take a look at the dependencies across these data: 
+
 
 ```{r, fig.width=10, fig.height=6}
 pred_var <- c("Hours_Studied", 
@@ -126,6 +132,7 @@ ggsave("correlation_matrix.png", p.pairs, width = 10, height = 6)
 
 ```
 
+
 ## Part 1: Linear Regression Analysis
 
 ### The Least Squares Estimators 
@@ -141,6 +148,7 @@ where $\mathbb{E}[\epsilon] = 0$ and $\text{Var}[\epsilon] = \sigma^2I$ denote t
 That being said, what the Gauss-Markov model boasts in theoretical simplicity, it often lacks in practical validity. If we refer to the exploratory analysis above, we can see that the assumptions may not hold. For one, we have one predictor variable, `Tutoring_Sessions`, and our dependent variable, `Exam_Score`, that are right-skewed. This violates the assumption of normality. Moreover, the Gauss-Markov model assumes constant variance with zeros on the off-diagonal elements of the covariance matrix. In practice, this is an assumption that is frequently violated. Interestingly, in our case the correlation between our predictor variables is indeed close to 0. If we had more substantial correlations on the off-diagonal elements, we could have solved our estimation problem with the generalized least squares estimator. 
 
 In our case, we will rememedy the normality assumption by transforming our data. We will use logaritmic transformations on the Exam score variable to achieve a normal distribution (`log_Exam_Score`) and a square root transformation of the Tutoring sessions variable to achieve a distribution that more closely resembles a normal distribution (`log_Tutoring_Sessions`). We chose the square root transformation for the tutoring sessions variable because it contains a lot of 0s, making the logarithmic transformation less suitable. 
+
 
 ```{r}
 # Log-transform skewed variables
@@ -165,6 +173,7 @@ p.hist
 ggsave("histograms.png", p.hist, width = 10, height = 6)
 
 ```
+
 
 $$
 Y = \begin{bmatrix} Y_1 \\ Y_2 \\ \vdots \\ Y_n \end{bmatrix} = 
@@ -195,6 +204,7 @@ $$
 
 Using the R `lm()` function, we can estimate the coefficients of the linear model:
 
+
 ```{r}
 # Fit the linear model
 lm_model <- 
@@ -214,6 +224,7 @@ modelsummary::modelsummary(lm_model,
   caption = "Linear Regression Results")
 
 ```
+
 
 We can see that all variables except for `Sleep_Hours` are significant predictors of exam scores, even at a 1% significance level. So what does this tell us about our hypothesis? We will further examine this question in the next subsection.  
 
@@ -270,6 +281,7 @@ $$
 
 We have successfully constructed a statistical test that allows us to test our hypothesis with a simple F-test. This is very attractive seeing how this test incorportates the precision of our estimates into the hypothesis testing framework, yet is computationally simple. In `R`, we can use the `anova()` function to perform this test. 
 
+
 ```{r}
 # Null model
 null_model <- lm(log_Exam_Score ~ 1, data = educ_dta)
@@ -286,6 +298,7 @@ write.csv(anova.tbl, "anova_results.csv", row.names = F)
 
 ```
 
+
 The result shows that under the null hypothesis, the probability of getting a more extreme result than our calculate F-test statistics `Pr(>F)` is $2.2e-16$. This evidence would lead us to reject the null hypothesis and conclude that our subset of predictors is indeed a significant predictor of exam scores. The observed test statistics agree exactly with the ones reported in the regression table. Using the F-statistic is important in settings like ours when we are interested in joint model significance rather than individual predictor significance. It is noteworthy that this analysis could certainly be extended to different model specifications, however, this is beyond the scope of this project.
 
 ## Part 2: Principal Component Analysis (Aristofanis) 
@@ -298,7 +311,9 @@ The result shows that under the null hypothesis, the probability of getting a mo
 
 ## Code Appendix
 
+
 ```{r, ref.label = knitr::all_labels()}
 #| echo: true
 #| eval: false
 ```
+
