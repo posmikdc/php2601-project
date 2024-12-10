@@ -27,7 +27,7 @@ library(MASS)
 
 ```
 
-# EDA and the Linear Model 
+# Linear Model (OLS Regression)
 
 ## Introduction
 
@@ -149,23 +149,15 @@ We have successfully constructed a statistical test that allows us to test our h
 
 ## Results 
 
-```{r}
-# Load the data
-#anova.tbl <- read_csv("anova_results.csv")
-
-# Print 
-#kableExtra::kable(anova.tbl, 
-#  caption = "F-Test Results for the Hypothesis Test")
-```
 ![F-Test Results](anova-results.png)
 
 The result shows that under the null hypothesis, the probability of getting a more extreme result than our calculate F-test statistics $\text{Pr}(>F)$ is $2.2e− 16$. 
 
 This evidence would lead us to reject the null hypothesis and conclude that our subset of predictors is indeed a significant predictor of exam scores
 
-# Elastic Net
+# Linear Model (Elastic Net)
 
-# Why Use Elastic Net?
+## Why Use Elastic Net?
 
 - **Limitations of Lasso**: May select only one variable from a group of highly correlated predictors.
 - **Limitations of Ridge**: Cannot produce sparse models (i.e., no feature selection).
@@ -173,8 +165,7 @@ This evidence would lead us to reject the null hypothesis and conclude that our 
   - Encourages group selection.
   - Balances sparsity and multicollinearity handling.
 
-
-# Elastic Net Formula
+## Elastic Net Formula
 
 Elastic Net adds two penalty terms:
 
@@ -184,26 +175,24 @@ $$ \min_{\beta} \Bigg( \sum_{i=1}^n (y_i - X_i \beta)^2 + \lambda_1 \|\beta\|_1 
 - $\|\beta\|_2^2$: Ridge penalty (L2).
 - $\lambda_1, \lambda_2$: Regularization parameters.
 
-# Tuning Parameters in Elastic Net
+## Tuning Parameters in Elastic Net
+
 1. **$\alpha$**: Controls the mix between Ridge and Lasso.
    - $\alpha = 0$: Ridge.
    - $\alpha = 1$: Lasso.
    - $0 < \alpha < 1$: Elastic Net.
 2. **$\lambda$**: Controls the overall strength of regularization.
 
-### Grid Search:
-- Perform cross-validation to find optimal values of $\alpha$ and $\lambda$.
+- Grid Search: Perform cross-validation to find optimal values of $\alpha$ and $\lambda$.
 
-
-# Elastic Net: Geometric Interpretation
+## Elastic Net: Geometric Interpretation
 
 - Elastic Net creates a penalty region combining L1 (diamond) and L2 (circle).
 - Encourages sparsity while handling correlated features.
 
 ![Elastic Net compared to Lasso and Ridge Regression](visualization_Elastic.png)
 
-
-# Elastic Net with Continuous Outcome
+## Elastic Net with Continuous Outcome
 
 The $R^2$ on the test data is calculated to be approximately $76\%$, meaning our model is able to explain $76\%$ of the variance in Exam Score in the test dataset
 
@@ -211,23 +200,60 @@ The $R^2$ on the test data is calculated to be approximately $76\%$, meaning our
 
 **Note:** Elastic Net (or Lasso) did not drop any variables as all predictors contribute to reducing the loss function, even with regularization applied.
 
-# Elastic Net with Binary Outcome
+## Elastic Net with Binary Outcome
 
 ![](ROC_3plots.png){width=100%}
 **Note:** This is an imbalanced dataset as most of the students have scored more than 60 in the exams. The median (and the mean) of the dataset is very close to the 3rd quantile (69). For instance, if we use threshold = 70, we can predict the probability a student's score is within/out the top 25% of the scores almost perfectly.
 
-# Stochastic Gradient Boosting Machine (GBM) - Gradient Boosting Machine Algorithm
+# Non-Linear Model (Random Forest)
 
-# What is Gradient Boosting?
+## Random Forest 
+
+Random Forest is based on the idea of combining multiple decision trees to improve predictive performance and robustness.
+
+Each decision tree in the Random Forest is trained on a bootstrap sample of the original data. At each split in a tree, a subset of the predictor variables is selected **randomly** to determine the split. This process ensures that the individual trees in the ensemble are decorrelated.
+
+- Mitigate the over-fitting problem of individual decision tree.
+- Handle complex non-linear relationships between variables.
+
+## Variable Importance Plot
+
+0ut-of-bag (OOB) MSE is 6.638.
+
+![Variable Importance Plot](Importance_Plot.png){width=80%}
+
+Attendance is the most important variable, while Sleep_Hours is the least important.
+
+## Approximation by a Single Regression Tree
+
+Random Forest:
+
+- Computationally intensive
+- Less interpretable compared to simpler models
+
+![RF and Single Tree](RF_and_single_tree.png){width=80%}
+
+Pearson correlation = $0.898$. 
+
+## Approximation by a Single Regression Tree
+
+![Single Regression Tree](RF_Single_Tree.png)
+
+## Results
+
+Attendance emerges as the most critical variable.
+
+The tree reveals **interaction effects** between Attendance and Hours_Studied, as their thresholds creating different groups with varying predicted values.
+
+# Non-Linear Model (Gradient Boosting)
+
+## What is Gradient Boosting?
 
 - **Definition**: Gradient boosting is a machine learning ensemble technique (ensemble models combine predictions from multiple base models to enhance overall performance) that sequentially combines the predictions of multiple weak learners, typically decision trees. 
 
-
 - **Purpose**: It aims to improve overall predictive performance by optimizing the model’s weights based on the errors of previous iterations, gradually reducing prediction errors and enhancing the model’s accuracy. 
 
-# How It Works
-
-
+## How It Works
 
 - **Step 1**: Start with a baseline model (e.g., mean prediction for regression)
 - **Step 2**: Compute residuals or errors from the current model
@@ -237,7 +263,7 @@ The $R^2$ on the test data is calculated to be approximately $76\%$, meaning our
 
 ![ ](gbm_visual.png){width=75%}
 
-# In our dataset
+## In our dataset
 
 ![Feature Importance Summary](gbm_visual3.png){width=80%}
 
@@ -246,18 +272,18 @@ The $R^2$ on the test data is calculated to be approximately $76\%$, meaning our
 - **Cover**: Proportion of samples impacted by the feature during splits. Higher values mean broader impact. **Attendance** has the highest Cover (0.1493).
 - **Frequency**: How often the feature is used in tree splits. Higher values suggest frequent use. **Hours_Studied** is split most often (0.1484).
 
-# In our dataset (cont.)
+## In our dataset (cont.)
 
-### Key Insights:
+Key Insights:
+
 - **Top Features**: "Attendance" and "Hours_Studied" are the most impactful features.
 - **Low-Impact Features**: Features like "Motivation_LevelLow" contribute minimally and may be less relevant.
 
 ![](gbm_visual2.png){width=80%}
 
+## Thank You
 
-
-
-
+Thank you for your attention!
 
 
 
