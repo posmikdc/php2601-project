@@ -277,9 +277,7 @@ null_model <- lm(log_Exam_Score ~ 1, data = educ_dta)
 # Perform the F-test
 anova.tbl <- anova(null_model, lm_model)
 
-# Print 
-kableExtra::kable(anova.tbl, 
-  caption = "F-Test Results for the Hypothesis Test")
+anova.tbl 
 
 # Save the table
 write.csv(anova.tbl, "anova_results.csv", row.names = F)

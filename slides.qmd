@@ -151,12 +151,14 @@ We have successfully constructed a statistical test that allows us to test our h
 
 ```{r}
 # Load the data
-anova.tbl <- read_csv("anova_results.csv")
+#anova.tbl <- read_csv("anova_results.csv")
 
 # Print 
-kableExtra::kable(anova.tbl, 
-  caption = "F-Test Results for the Hypothesis Test")
+#kableExtra::kable(anova.tbl, 
+#  caption = "F-Test Results for the Hypothesis Test")
 ```
+![F-Test Results](anova-results.png)
+
 The result shows that under the null hypothesis, the probability of getting a more extreme result than our calculate F-test statistics $\text{Pr}(>F)$ is $2.2e− 16$. 
 
 This evidence would lead us to reject the null hypothesis and conclude that our subset of predictors is indeed a significant predictor of exam scores
