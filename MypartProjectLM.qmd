@@ -1,0 +1,102 @@
+---
+#title: "mypartLM"
+#author: "Aristofanis"
+format: beamer
+editor: visual
+---
+
+# Elastic Net
+
+# Why Use Elastic Net?
+
+- **Limitations of Lasso**: May select only one variable from a group of highly correlated predictors.
+- **Limitations of Ridge**: Cannot produce sparse models (i.e., no feature selection).
+- **Elastic Net Advantage**: 
+  - Encourages group selection.
+  - Balances sparsity and multicollinearity handling.
+
+
+# Elastic Net Formula
+
+Elastic Net adds two penalty terms:
+
+$$ \min_{\beta} \Bigg( \sum_{i=1}^n (y_i - X_i \beta)^2 + \lambda_1 \|\beta\|_1 + \lambda_2 \|\beta\|_2^2 \Bigg) $$
+
+- $\|\beta\|_1$: Lasso penalty (L1).
+- $\|\beta\|_2^2$: Ridge penalty (L2).
+- $\lambda_1, \lambda_2$: Regularization parameters.
+
+# Tuning Parameters in Elastic Net
+1. **$\alpha$**: Controls the mix between Ridge and Lasso.
+   - $\alpha = 0$: Ridge.
+   - $\alpha = 1$: Lasso.
+   - $0 < \alpha < 1$: Elastic Net.
+2. **$\lambda$**: Controls the overall strength of regularization.
+
+### Grid Search:
+- Perform cross-validation to find optimal values of $\alpha$ and $\lambda$.
+
+
+# Elastic Net: Geometric Interpretation
+
+- Elastic Net creates a penalty region combining L1 (diamond) and L2 (circle).
+- Encourages sparsity while handling correlated features.
+
+![Elastic Net compared to Lasso and Ridge Regression](visualization_Elastic.png)
+
+
+# Elastic Net with Continuous Outcome
+
+The $R^2$ on the test data is calculated to be approximately $76\%$, meaning our model is able to explain $76\%$ of the variance in Exam Score in the test dataset
+
+![The first 14 rows of the Elastic Net coefficients table](elastnettable1.png){width=40%}
+
+**Note:** Elastic Net (or Lasso) did not drop any variables as all predictors contribute to reducing the loss function, even with regularization applied.
+
+# Elastic Net with Binary Outcome
+
+![](ROC_3plots.png){width=100%}
+**Note:** This is an imbalanced dataset as most of the students have scored more than 60 in the exams. The median (and the mean) of the dataset is very close to the 3rd quantile (69). For instance, if we use threshold = 70, we can predict the probability a student's score is within/out the top 25% of the scores almost perfectly.
+
+# Stochastic Gradient Boosting Machine (GBM) - Gradient Boosting Machine Algorithm
+
+# What is Gradient Boosting?
+
+- **Definition**: Gradient boosting is a machine learning ensemble technique (ensemble models combine predictions from multiple base models to enhance overall performance) that sequentially combines the predictions of multiple weak learners, typically decision trees. 
+
+
+- **Purpose**: It aims to improve overall predictive performance by optimizing the model’s weights based on the errors of previous iterations, gradually reducing prediction errors and enhancing the model’s accuracy. 
+
+# How It Works
+
+
+
+- **Step 1**: Start with a baseline model (e.g., mean prediction for regression)
+- **Step 2**: Compute residuals or errors from the current model
+- **Step 3**: Fit a new model to the residuals (weak learners like decision trees)
+- **Step 4**: Update the overall model by adding the new learner
+- **Step 5**: Repeat until convergence or a predefined number of iterations
+
+![ ](gbm_visual.png){width=75%}
+
+# In our dataset
+
+![Feature Importance Summary](gbm_visual3.png){width=80%}
+
+- **Feature**: Lists the features (variables) in the dataset.
+- **Gain**: Contribution of the feature to the model’s accuracy. Higher values indicate greater importance. **Attendance** contributes the most (0.4234).
+- **Cover**: Proportion of samples impacted by the feature during splits. Higher values mean broader impact. **Attendance** has the highest Cover (0.1493).
+- **Frequency**: How often the feature is used in tree splits. Higher values suggest frequent use. **Hours_Studied** is split most often (0.1484).
+
+# In our dataset (cont.)
+
+### Key Insights:
+- **Top Features**: "Attendance" and "Hours_Studied" are the most impactful features.
+- **Low-Impact Features**: Features like "Motivation_LevelLow" contribute minimally and may be less relevant.
+
+![](gbm_visual2.png){width=80%}
+
+
+
+
+

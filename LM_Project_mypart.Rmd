@@ -1,0 +1,567 @@
+---
+title: "Project_Linear_Models"
+author: "Aristofanis"
+date: "2024-10-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Set up knit environment
+knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(error = F)
+knitr::opts_chunk$set(warning = F)
+knitr::opts_chunk$set(message = F)
+```
+
+
+```{r setup, include=FALSE}
+# Load necessary packages
+library(tidyverse)
+library(kableExtra)
+library(knitr)
+library(ggplot2)
+library(naniar)
+library(gtsummary)
+library(GGally)
+
+```
+
+
+```{r}
+# Load the data
+educdata <- read_csv("student_performance.csv") %>%
+  mutate(
+    Parental_Involvement = as.factor(Parental_Involvement),
+    Access_to_Resources = as.factor(Access_to_Resources),
+    Extracurricular_Activities = as.factor(Extracurricular_Activities),
+    Motivation_Level = as.factor(Motivation_Level),
+    Internet_Access = as.factor(Internet_Access),
+    Family_Income = as.factor(Family_Income),
+    Teacher_Quality = as.factor(Teacher_Quality),
+    School_Type = as.factor(School_Type),
+    Peer_Influence = as.factor(Peer_Influence),
+    Learning_Disabilities = as.factor(Learning_Disabilities),
+    Parental_Education_Level = as.factor(Parental_Education_Level),
+    Distance_from_Home = as.factor(Distance_from_Home),
+    Gender = as.factor(Gender)
+  )
+
+```
+
+```{r}
+#View(educdata)
+#str(educdata)
+# The percentage of missingness is very low (way less than 5%), so we can delete the rows with missing values.
+data <- na.omit(educdata)
+s<-summary(data) # the mean is always very close to the median in every continuous variable, making it hard for my further analysis
+# Check the new dimensions
+dim(data) #6378x20
+
+```
+
+
+# Elastic Net
+\section*{Elastic Net Regularization}
+
+Elastic Net is a regularized regression technique that combines the strengths of two other methods: Ridge Regression and Lasso Regression. It is especially useful when you have a dataset with many predictors, some of which may be highly correlated.
+
+\subsection*{Key Features of Elastic Net:}
+
+\textbf{Combination of Ridge and Lasso:}
+
+\begin{itemize}
+    \item \textbf{Ridge Regression:} Adds an $L_2$-norm penalty to the loss function, which helps handle multicollinearity but does not perform variable selection.
+    \item \textbf{Lasso Regression:} Adds an $L_1$-norm penalty, which can shrink some coefficients to exactly zero, effectively performing variable selection.
+    \item Elastic Net combines both penalties, controlled by a mixing parameter ($\alpha$).
+\end{itemize}
+
+The penalty term in Elastic Net is:
+
+\[
+\lambda \left( \alpha \| \beta \|_1 + (1 - \alpha) \frac{1}{2} \| \beta \|_2^2 \right)
+\]
+
+where:
+\begin{itemize}
+    \item $\alpha$: Controls the balance between $L_1$ (Lasso) and $L_2$ (Ridge) penalties.
+    \item $\lambda$: Overall regularization strength.
+\end{itemize}
+
+\subsection*{How Elastic Net Handles Key Challenges:}
+
+\textbf{Handles Multicollinearity:}
+
+When predictors are highly correlated, Lasso may arbitrarily select one variable. Elastic Net tends to share the weight across correlated predictors.
+
+\textbf{Variable Selection:}
+
+Like Lasso, Elastic Net can shrink some coefficients to zero, effectively removing those predictors from the model.
+
+\subsection*{Advantage}
+
+```{r}
+# Lets check correlations of the numeric variables
+# Select only numeric columns
+numeric_data <- data[sapply(data, is.numeric)]
+# Compute correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs")  # Ignores missing values
+print(cor_matrix)
+
+#linear model selection and regularization (ISLR-Tibshirani)
+```
+
+Why Exclude the Intercept?
+Intercept Term: The intercept represents the baseline level of the response variable (in this case, Exam_Score) when all predictors are set to zero. Regularization (whether Lasso, Ridge, or Elastic Net) works by shrinking or setting to zero the coefficients of the predictors (the variables), but not the intercept.
+
+Regularization Focus: By excluding the intercept, the regularization is applied only to the predictors, helping us focus on variable selection and coefficient shrinkage. Including the intercept in the regularization would penalize its value, which doesn't make sense since the intercept is typically an inherent part of the model and not a variable that can be shrunk.
+```{r}
+# Load necessary libraries
+library(glmnet)
+
+# Prepare predictor matrix (X) and response vector (y)
+X <- model.matrix(Exam_Score ~ . - 1, data = data)  # Exclude the intercept
+y <- data$Exam_Score
+
+# Standardize predictors (important for Elastic Net)
+X <- scale(X)
+
+# Fit Elastic Net model with cross-validation
+set.seed(581)
+cv_model <- cv.glmnet(X, y, alpha = 0.5)  # alpha = 0.5 for Elastic Net (mix of L1 and L2), we can change that if we want more of lasso or more of ridge
+
+# View the best lambda (regularization parameter) based on cross-validation
+cv_model$lambda.min
+
+# Plot cross-validation results
+plot(cv_model)
+
+# Extract coefficients from the best model
+coef(cv_model, s = "lambda.min")
+
+```
+The plot shows the mean cross-validation error as a function of the regularization parameter, $\lambda$. The vertical line at $\lambda_{\text{min}}$ represents the value of $\lambda$ that minimizes the error, providing the optimal balance between model complexity and prediction accuracy. If you're aiming for a more regularized, simpler model, $\lambda_{\text{1se}}$ is also a viable choice, as it reduces the risk of overfitting, even though it may lead to a slightly higher error.
+
+
+
+# Elastic Net with continuous outcome
+```{r}
+# Load necessary libraries
+library(glmnet)
+library(ggplot2)
+library(dplyr)
+
+data <- na.omit(educdata)
+
+# Specify the target and predictors
+target <- "Exam_Score"
+categorical_cols <- names(data)[sapply(data, is.factor)]
+numeric_cols <- names(data)[sapply(data, is.numeric) & names(data) != target]
+
+# Create dummy variables for categorical predictors
+dummies <- model.matrix(~ . - 1, data = data[categorical_cols])
+X <- cbind(data[, numeric_cols], dummies)
+y <- data[[target]]
+
+# Split data into training and testing sets
+set.seed(581)
+train_index <- sample(1:nrow(X), 0.7 * nrow(X))
+X_train <- X[train_index, ]
+X_test <- X[-train_index, ]
+y_train <- y[train_index]
+y_test <- y[-train_index]
+
+# Fit Elastic Net model using cv.glmnet
+set.seed(581)
+elastic_net_model <- cv.glmnet(
+  x = as.matrix(X_train),
+  y = y_train,
+  family = "gaussian", # Use gaussian for continuous outcome
+  alpha = 0.5,         # Equivalent to l1_ratio = 0.5
+  standardize = TRUE   # Standardize predictors
+)
+
+# Extract the best lambda
+best_lambda <- elastic_net_model$lambda.min
+
+# Predict on the test set
+predicted_values <- predict(elastic_net_model, newx = as.matrix(X_test), s = best_lambda)
+
+# Compute R-squared (or other regression metrics)
+residuals <- y_test - predicted_values
+rss <- sum(residuals^2)  # Residual sum of squares
+tss <- sum((y_test - mean(y_test))^2)  # Total sum of squares
+r_squared <- 1 - rss / tss
+
+# Print R-squared
+cat("R-squared on test data:", round(r_squared, 4), "\n")
+
+# Extract coefficients at best lambda
+coefficients <- coef(elastic_net_model, s = best_lambda)
+
+# Convert coefficients to a data frame
+coef_table <- data.frame(
+  Variable = rownames(coefficients),
+  Coefficient = as.numeric(coefficients)
+)
+
+# Filter for non-zero coefficients
+coef_table <- coef_table %>%
+  filter(Coefficient != 0) %>%
+  arrange(desc(abs(Coefficient)))  # Sort by the absolute value of coefficients
+
+# Print the formatted table
+coef_table %>%
+  rename(
+    Predictor = Variable,
+    `Elastic Net Coefficient` = Coefficient
+  ) %>%
+  knitr::kable(
+    caption = "Elastic Net Coefficients",
+    format = "markdown",
+    digits = 4
+  )
+
+
+```
+
+# Elastic Net with categorical outcome 
+```{r, fig.width= 12, fig.height = 4}
+# Load necessary libraries
+library(glmnet)
+library(pROC)
+library(egg)
+
+data <- na.omit(educdata)
+# Transform Exam_Score into a binary variable and remove the original column
+data <- data %>%
+  mutate(Exam_Score_60 = as.factor(ifelse(Exam_Score > 60, "Pass", "Fail")),
+         Exam_Score_70 = as.factor(ifelse(Exam_Score > 70, "Pass", "Fail")),
+         Exam_Score_80 = as.factor(ifelse(Exam_Score > 80, "Pass", "Fail")))
+
+# the median (and the mean) is very close to 3rd quantile. We choose threshold = 70, because the third quantile is 69. As we can see below, we can predict the probability a student's score is within/out the top 25% of the scores almost perfectly.
+
+# Specify the target and predictors
+targets <- c("Exam_Score_60", "Exam_Score_70", "Exam_Score_80")
+cutoffs <- c("60", "70", "80")
+
+ROC_curves = list()
+for (i in 1:3) {
+  target = targets[i]
+  cutoff = cutoffs[i]
+  categorical_cols <- names(data)[sapply(data, is.factor) &
+                                    !names(data) %in% targets]
+  numeric_cols <- names(data)[sapply(data, is.numeric) & names(data) != "Exam_Score"]
+  
+  # Create dummy variables for categorical predictors
+  dummies <- model.matrix( ~ . - 1, data = data[categorical_cols])
+  
+  # Combine predictors and target into a single dataset
+  combined_data <- cbind(data[, numeric_cols], dummies)
+  combined_data$Exam_Score_binomial <- as.numeric(data[[target]]) - 1  # Convert "Pass"/"Fail" to 1/0
+  
+  # Split data into training and testing sets
+  set.seed(581)
+  train_index <- sample(1:nrow(combined_data), 0.7 * nrow(combined_data))
+  X_train <- combined_data[train_index, -ncol(combined_data)]
+  y_train <- combined_data[train_index, ncol(combined_data)]
+  X_test <- combined_data[-train_index, -ncol(combined_data)]
+  y_test <- combined_data[-train_index, ncol(combined_data)]
+  
+  # Fit Elastic Net model using cv.glmnet
+  set.seed(581)
+  elastic_net_model <- cv.glmnet(
+    x = as.matrix(X_train),
+    y = y_train,
+    family = "binomial",
+    # Use binomial for binary classification
+    alpha = 0.5,
+    # Equivalent to l1_ratio = 0.5
+    standardize = TRUE,
+    type.measure = "auc"  # Use AUC as the performance metric
+  )
+  
+  # Extract the best lambda
+  best_lambda <- elastic_net_model$lambda.min
+  
+  # Predict probabilities on the test set
+  predicted_probabilities <- predict(
+    elastic_net_model,
+    newx = as.matrix(X_test),
+    s = best_lambda,
+    type = "response"
+  )
+  
+  # Generate predictions
+  predicted_classes <- ifelse(predicted_probabilities > 0.5, 1, 0)
+  
+  # Compute confusion matrix
+  conf_matrix <- table(Predicted = predicted_classes, Actual = y_test)
+  #print(conf_matrix)
+  
+  # Compute AUC and plot ROC curve
+  roc_curve <- roc(y_test, as.numeric(predicted_probabilities))
+  auc_value <- auc(roc_curve)
+  
+  # Plot ROC curve
+  roc = ggplot(
+    data.frame(
+      Specificity = rev(roc_curve$specificities),
+      Sensitivity = rev(roc_curve$sensitivities)
+    ),
+    aes(x = 1 - Specificity, y = Sensitivity)
+  ) +
+    geom_line(color = "blue", size = 1) +
+    geom_abline(
+      slope = 1,
+      intercept = 0,
+      linetype = "dashed",
+      color = "grey"
+    ) +
+    annotate(
+      "text",
+      x = 0.8,
+      y = 0.2,
+      label = paste("AUC =", round(auc_value, 2)),
+      size = 5,
+      color = "Black"
+    ) +
+    labs(x = "1 - Specificity", y = "Sensitivity", title = paste0("ROC Curve (Cutoff = ", cutoff, ")")) +
+    theme_minimal()
+  
+  ROC_curves[[i]] = roc
+}
+
+ROC_curves = egg::ggarrange(plots = ROC_curves, 
+               nrow = 1, 
+               top = "ROC Curves for Binary Outcomes with Different Cutoff Thresholds")
+#ggsave(ROC_curves, "ROC_curves.png", width = 12, height = 4.5, unit = "in")
+
+# Extract coefficients at best lambda
+# coefficients <- coef(elastic_net_model, s = best_lambda)
+# 
+# # Convert coefficients to a data frame
+# coef_table <- data.frame(
+#   Variable = rownames(coefficients),
+#   Coefficient = as.numeric(coefficients)
+# )
+# 
+# # Filter for non-zero coefficients
+# coef_table <- coef_table %>%
+#   filter(Coefficient != 0) %>%
+#   arrange(desc(abs(Coefficient)))
+# 
+# # Print coefficients
+# print(coef_table)
+
+
+```
+#### the AUC is so perfect maybe because most of the students have scored more than 60 (Imbalanced Dataset)
+
+```{r}
+# Gradient Boosting Machines (GBM) - Gradient Boosting Algorithm
+
+# Load necessary libraries
+library(lightgbm)
+library(Matrix)
+library(dplyr)
+
+# Preprocessing the data (similar to Elastic Net)
+data <- na.omit(educdata)
+
+# Specify target and predictors
+target <- "Exam_Score"
+categorical_cols <- names(data)[sapply(data, is.factor)]
+numeric_cols <- names(data)[sapply(data, is.numeric) & names(data) != target]
+
+# Create dummy variables for categorical predictors
+dummies <- model.matrix(~ . - 1, data = data[categorical_cols])
+X <- cbind(data[, numeric_cols], dummies)
+y <- data[[target]]
+
+# Split data into training and testing sets
+set.seed(581)
+train_index <- sample(1:nrow(X), 0.7 * nrow(X))
+X_train <- X[train_index, ]
+X_test <- X[-train_index, ]
+y_train <- y[train_index]
+y_test <- y[-train_index]
+
+# Convert training and test sets to LightGBM format
+lgb_train <- lgb.Dataset(data = as.matrix(X_train), label = y_train)
+lgb_test <- lgb.Dataset(data = as.matrix(X_test), label = y_test, reference = lgb_train)
+
+# Set parameters for the LightGBM model
+params <- list(
+  objective = "regression",
+  metric = "rmse",
+  boosting = "gbdt",          # Gradient Boosting Decision Trees
+  learning_rate = 0.05,
+  num_leaves = 31,
+  max_depth = -1,
+  feature_fraction = 0.9
+)
+
+# Train the LightGBM model
+set.seed(581)
+gbm_model <- lgb.train(
+  params = params,
+  data = lgb_train,
+  nrounds = 1000,
+  valids = list(train = lgb_train, test = lgb_test),
+  early_stopping_rounds = 50,
+  verbose = 1
+)
+
+# Predict on test data
+predicted_values <- predict(gbm_model, as.matrix(X_test), num_iteration = gbm_model$best_iter)
+
+# Compute R-squared
+rss <- sum((y_test - predicted_values)^2)  # Residual sum of squares
+tss <- sum((y_test - mean(y_test))^2)      # Total sum of squares
+r_squared <- 1 - rss / tss
+
+# Compute RMSE
+rmse <- sqrt(mean((y_test - predicted_values)^2))
+
+# Print performance metrics
+cat("R-squared on test data:", round(r_squared, 4), "\n")
+cat("Root Mean Squared Error (RMSE):", round(rmse, 4), "\n")
+
+# Feature Importance
+importance <- lgb.importance(gbm_model, percentage = TRUE)
+print(importance)
+
+# Plot feature importance
+lgb.plot.importance(importance, top_n = 12, measure = "Gain")
+```
+
+
+```{r}
+importance$Normalized_Gain <- importance$Gain / sum(importance$Gain)
+importance <- importance %>%
+  arrange(desc(Normalized_Gain)) %>%
+  mutate(Cumulative_Gain = cumsum(Normalized_Gain))
+
+```
+
+```{r}
+# Load required libraries
+library(lightgbm)
+library(DiagrammeR)
+library(data.table)
+
+# Step 1: Extract the tree structure
+tree_structure <- lgb.model.dt.tree(gbm_model)
+
+# Debug: Check if the tree structure is valid
+if (is.null(tree_structure)) stop("Tree structure extraction failed. Ensure 'gbm_model' is valid.")
+print(head(tree_structure, 20))  # Inspect the first 20 rows
+
+# Step 2: Focus on the first tree and limit to the top 5 features and depth
+important_variables <- c("Attendance", "Hours_Studied", "Previous_Scores", 
+                         "Tutoring_Sessions", "Parental_Involvement")
+
+# Filter for the first tree, top features, and limit depth to 2
+filtered_tree <- tree_structure[
+  tree_index == 0 & 
+  split_feature %in% important_variables & 
+  depth <= 2
+]
+
+# Debug: Ensure filtering worked and leaves are present
+if (nrow(filtered_tree) == 0) stop("Filtered tree is empty. Check 'important_variables' or your model.")
+print(filtered_tree)
+
+# Step 3: Generate split nodes
+split_nodes <- unique(filtered_tree[!is.na(split_feature), paste0(
+  split_index, 
+  " [label = '", split_feature, " > ", threshold, "', shape = box, style = filled, color = lightblue]"
+)])
+
+# Step 4: Generate leaf nodes for predictions
+leaf_nodes <- filtered_tree[!is.na(leaf_value), ]
+leaf_labels <- unique(leaf_nodes[, paste0(
+  leaf_index, 
+  " [label = 'Prediction: ", round(leaf_value, 2), "', shape = ellipse, style = filled, color = lightgreen]"
+)])
+
+# Step 5: Create edges
+edges <- unique(filtered_tree[, paste0(
+  split_index, " -> ", ifelse(!is.na(leaf_index), leaf_index, split_index + 1), 
+  " [label = '", threshold, "']"
+)])
+
+# Debug: Check if nodes and edges are created
+if (length(split_nodes) == 0) stop("No split nodes created. Check 'filtered_tree'.")
+if (length(edges) == 0) stop("No edges created. Check 'filtered_tree'.")
+if (length(leaf_labels) == 0) stop("No leaf labels created. Check 'filtered_tree'.")
+
+# Step 6: Combine nodes and edges into a graph script
+graph_script <- paste0("
+  digraph lightgbm_tree {
+    graph [layout = dot, rankdir = TD]
+
+", paste(split_nodes, collapse = "\n"), "
+
+", paste(leaf_labels, collapse = "\n"), "
+
+", paste(edges, collapse = "\n"), "
+  }
+")
+
+# Debug: Print the graph script for inspection
+cat(graph_script)
+
+# Step 7: Render the graph
+grViz(graph_script)
+
+```
+
+```{r}
+# Load necessary libraries
+library(psych)
+
+# Check structure of the dataset
+str(data)
+
+# Ensure factors are properly encoded
+educdata <- data %>% 
+  mutate(across(where(is.factor), ~ factor(.)))
+
+# For numeric variables, discretize them into ordered factors (if needed for polychoric)
+educdata <- data %>% 
+  mutate(across(where(is.numeric), ~ cut(., breaks = 4, labels = FALSE))) # Adjust `breaks` as needed
+
+# Compute the polychoric correlation matrix
+poly_corr <- polychoric(data)
+
+# Extract the correlation matrix
+cor_matrix <- poly_corr$rho
+
+# Check suitability for factor analysis (Bartlett's Test and KMO)
+bartlett_test <- cortest.bartlett(cor_matrix, n = nrow(educdata))
+kmo_result <- KMO(cor_matrix)
+
+# Print results
+cat("Bartlett's Test of Sphericity:\n")
+print(bartlett_test)
+
+cat("\nKaiser-Meyer-Olkin (KMO) Measure of Sampling Adequacy:\n")
+print(kmo_result)
+
+# Perform Factor Analysis using the polychoric correlation matrix
+fa_result <- fa(cor_matrix, nfactors = 4, rotate = "varimax", fm = "ml") # Adjust nfactors as needed
+
+# View the factor loadings
+cat("\nFactor Loadings:\n")
+print(fa_result$loadings)
+
+# Visualize the scree plot
+scree(cor_matrix)
+
+# Perform parallel analysis to decide the number of factors
+fa.parallel(cor_matrix, n.obs = nrow(educdata), fa = "fa")
+
+```
+
+
