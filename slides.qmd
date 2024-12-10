@@ -31,15 +31,15 @@ library(MASS)
 
 ## Introduction
 
-We will be analyzing educational data. 
+We will be analyzing educational data to understand the predictors of student performance. Specifically, we seek to **understand whether five predictors -- as a subset of an exhaustive list of potential predictors -- are significant predictors of student performance**.
 
-We are interested in understanding the predictors of student performance as measured by exam scores. 
+Testing the significant of a subset of predictors is becoming increasingly important in modern statistical questions, especially with more information becoming available. 
 
 We will be using a publicly available dataset from Kaggle that contains information about students and their exam scores.
 
 ## Hypothesis to be Tested 
 
-We want to further explore a specific hypothesis about a subset of predictor variables. Suppose we maintain that the following variables are significant predictors:
+We are interested in: 
 
 - Hours Studied
 - Attendance 
@@ -52,9 +52,19 @@ We can formalize this question as follows:
 - $H_0: \begin{bmatrix} 1_{[0, \cdots, p+1]}, & 0_{[p+2, \cdots, P]} \end{bmatrix} \cdot \begin{bmatrix} \beta_0 & \cdots & \beta_{P} \end{bmatrix}^T = \beta_0 + \cdots + \beta_{p+1} = 0$ 
 - $H_A: \{\beta_1 \neq 0\} \cap \cdots \cap \{\beta_5 \neq 0\}$
 
+Observe the 0-indexed variables from $p+2$ to $P$.
+
 ## Exploratory Data Analysis (EDA)
 
 ![Correlation Matrix](correlation_matrix.png)
+
+## Variable Transformations
+
+We will transform the variables to ensure that the assumptions of the linear model are met.
+
+![Variable Transformation](histograms.png)
+
+We use log and square root transformations to ensure that the residuals are normally distributed.
 
 ## The Linear Model 
 
@@ -74,17 +84,9 @@ $$
 
 where $\mathbb{E}[\epsilon] = 0$ and $\text{Var}[\epsilon] = \sigma^2I$ denote the zero-mean and constant variance assumptions. In our case, we begin with $p = 5$, i.e. our design matrix has $p+1$ columns, accounting for the intercept term.
 
-## Variable Transformations
-
-We will transform the variables to ensure that the assumptions of the linear model are met.
-
-![Variable Transformation](histograms.png)
-
-We use log and square root transformations to ensure that the residuals are normally distributed.
-
 ## Solving for $\hat{\beta}$
 
- we can solve for $\hat{\beta}$ via the normal equations:
+We can solve for $\hat{\beta}$ via the normal equations:
 
 $$
 \begin{aligned}
@@ -101,9 +103,17 @@ $$
 
 In our case, all predictors but Sleep Hours are significant predictors of exam scores, even at a 1% level of significance. 
 
-## Estimability and BLUE 
+## Estimability of the Hypothesis
 
-A necessary condition for the hypothesis to be testable is that $\mathbf{K}^T\beta$ is estimable. We say $\exists ~ A ~ \text{s.t. } X^TA = K^T$, i.e. the rows of K are linearly dependent on the rows of X. We are now ready to state an important intermediate distributional result. Since $\mathbf{K}^T \beta$ is estimable, its best linear unbiased estimator (BLUE) is given by:
+Question: **Can we estimate an object $K^T \beta$ with our data $X$?**
+
+Formally, we say that if $\exists ~ A ~ \text{s.t. } X^TA = K^T$, i.e. $K^T$ can be expressed as a linear combination of $X$ and some matrix $A$, then $K^T \beta$ is estimable.
+
+In our case, this is straightforward to verify. Can we think of an example when this is not true? (Hint: Dimension "mismatch")
+
+## Distribution of $K^T \beta$
+
+Since $K^T \beta$ estimable, its best linear unbiased estimator (BLUE) is given by: 
 
 $$
 \begin{aligned}
@@ -112,9 +122,11 @@ $$
 \end{aligned}
 $$
 
-Indeed, we can can test our hypothesis by constructing a quadratic form. While this is certainly not the only way to test our hypothesis, it is a tractable method to incorporate the precision of each $\hat{\beta}_i$ into our hypothesis testing framework.
+This object $K^T \beta$ may seem a bit arbitrary, even useless, at first. However, it is in fact the building block for the test statistic we will construct now! 
 
 ## Quadratic Form in our Joint Testing Procedure  
+
+Suppose $H := K (X^T X)^g K^T$, then 
 
 $$
 \begin{aligned}
@@ -122,7 +134,9 @@ $$
 \end{aligned}
 $$
 
-where the non-centrality parameter $\lambda = \frac{1}{2} (K \beta)^T (\sigma^2 H)^{-1}(K \beta)$ by the well-known distributional result of a normal quadratic form. We are now ready to construct the F-test statistic as follows:
+where the non-centrality parameter $\lambda = \frac{1}{2} (K \beta)^T (\sigma^2 H)^{-1}(K \beta)$ is the well-known distributional result of a normal quadratic form. 
+
+Finally, our F Statistic: 
 
 $$
 \begin{aligned}
@@ -143,7 +157,9 @@ anova.tbl <- read_csv("anova_results.csv")
 kableExtra::kable(anova.tbl, 
   caption = "F-Test Results for the Hypothesis Test")
 ```
-The result shows that under the null hypothesis, the probability of getting a more extremeresult than our calculate F-test statistics $\text{Pr}(>F)$ is $2.2e− 16$. This evidence would lead us to reject the null hypothesis and conclude that our subset of predictors is indeed a significantpredictor of exam scores
+The result shows that under the null hypothesis, the probability of getting a more extreme result than our calculate F-test statistics $\text{Pr}(>F)$ is $2.2e− 16$. 
+
+This evidence would lead us to reject the null hypothesis and conclude that our subset of predictors is indeed a significant predictor of exam scores
 
 # LASSO Regression 
 
